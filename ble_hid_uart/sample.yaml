@@ -1,0 +1,8 @@
+sample:
+  description: TBD
+  name: TBD
+tests:
+  sample.bluetooth.peripheral_hr:
+    harness: bluetooth
+    platform_allow: pan1080xxxx
+    tags: bluetooth

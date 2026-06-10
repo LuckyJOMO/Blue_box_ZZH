@@ -1,0 +1,16 @@
+ZAL 里点 Rebuild 失败（路径太长）— 已修复
+
+原因：
+  ZAL 输出目录名 ble_hid_uart_prj_pan108xxa1_evb 太长，超过 Windows 约 260 字符。
+
+处理（仍在 pan1080_Decoder 工程内）：
+  1. 实际编译目录：01_SDK\build\ble_hid\
+  2. Toolchain\panchip_bin\west.cmd 会把 ZAL 的长目录名自动改成 ble_hid
+  3. 首次请先运行 rebuild_short.bat 生成 ble_hid
+  4. 可选：以管理员运行 fix_zal_build_path.bat，让 ZAL「打开输出目录」仍指向原名称
+
+使用：
+  照常打开 ZAL → 选 ble_hid_uart → Rebuild / Flash
+
+若仍失败：
+  右键 enable_win_long_paths.reg → 合并 → 重启电脑（一劳永逸）

@@ -1,0 +1,68 @@
+/*
+ * Copyright (c) 2020-2022 Shanghai Panchip Microelectronics Co.,Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&cpu0 {
+	cpu-power-states = <>;
+};
+
+/ {
+	model = "Panchip PAN108X-XB1 Evaluation Board";
+	compatible = "panchip,pan108xxb1-evb", "panchip,pan1080xb1";
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart1;
+		zephyr,bt-mon-uart = &uart1;
+		zephyr,bt-c2h-uart = &uart1;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		panchip,llctlr-partition = &llctlr_partition;
+	};
+};
+
+&uart0 {
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&uart1 {
+	current-speed = <115200>;
+	pinctrl-0 = <&p0_6_uart1_tx &p0_7_uart1_rx>;
+	status = "okay";
+};
+
+&clk_xtl {
+	clock-frequency = <32768>;
+	/* Enable the 32 KHz low speed crystal oscillator */
+	status = "disabled";
+};
+
+&clk_rcl {
+	clock-frequency = <32000>;
+	/* Enable the 32 KHz low speed crystal oscillator */
+	status = "okay";
+};
+
+&dpll {
+	clocks = <&clk_xth>;
+	clock-div = <2>;  /* Fixed to 2 */
+	clock-mult = <3>; /* Can be 3 (48MHz) or 4 (64MHz) */
+	status = "okay";
+};
+
+&clk_rch {
+	status = "disabled";
+};
+
+&rcc {
+	clock-frequency-system = <DT_FREQ_M(48)>;
+	clocks = <&dpll &clk_rcl>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <12>;
+	apb2-prescaler = <12>;
+	clock-frequency-slow = <32000>;
+};
