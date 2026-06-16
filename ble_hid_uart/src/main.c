@@ -54,6 +54,8 @@
 #include "dev_led.h"
 
 #include "mcu_to_ble_protocol_v3.0.h"
+
+#include "sc7u22_spi.h"
 /******************  OTA INCLUDE *******************/
 #if OTA_ENABLED
 #ifdef CONFIG_MCUMGR_CMD_OS_MGMT
@@ -394,11 +396,12 @@
  void show_reg3(uint8_t const *data, uint32_t len)
  {
 	 uint32_t i = 0;
-
+	 printk("len%d ", len);
 	 if (len == 0) {
 		 return;
 	 }
-	 for (; i < len; i++) {
+
+	 for (i = 0; i < len; i++) {
 		 printk("0x%02X ", data[i]);
 	 }
 	 printk("\n");
@@ -598,11 +601,12 @@ void Handle_app_cmd_and_reply(uint8_t app_cmd ,const uint8_t *data, uint16_t len
 			  const void *buf, uint16_t len, uint16_t offset,
 			  uint8_t flags)
  {
-	 /* uint8_t *value = attr->user_data; */
-	 // show_reg3(buf, len);
-	 #if DEBUG_PRINT_ENABLE
-	 user_print_auto("APP send data to BLE", (const uint8_t *)buf, len);
-	 #endif
+	//  /* uint8_t *value = attr->user_data; */
+	printk("App_to_ble");
+	show_reg3(buf, len);
+	// #if DEBUG_PRINT_ENABLE
+	// user_print_auto("APP send data to BLE", (const uint8_t *)buf, len);
+	// #endif
 	 //对输入的数据进行粘包分帧处理，并回复app。
 	 V3_handle_app_data((const uint8_t *)buf, len);
 	 return len;
@@ -1246,16 +1250,17 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 	 {
 		 rec_num = TGT_UART->RFL;
 		 for (uint8_t i = 0; i < rec_num; i++)
-			 RX_Sendata[USART_RX_CNT++] = UART_ReceiveData(TGT_UART);
+		 {
+			//  printk("MCU_BLE:%02x", RX_Sendata[USART_RX_CNT]);
 
-		// printk("Received data from MCU (hex, len=%d): ", USART_RX_CNT);
-		// for (uint16_t i = 0; i < USART_RX_CNT; i++) {
-		// 	printk("%02X ", RX_Sendata[i]);
-		// }
-		// printk("\r\n");
+			 RX_Sendata[USART_RX_CNT++] = UART_ReceiveData(TGT_UART);
+		 }
+
+
 		 // 根据首字节区分协议版本: 0x53=V3协议, 其他=V2协议
 		 if (USART_RX_CNT > 0 && RX_Sendata[0] == V3_FRAME_HEAD_0 && RX_Sendata[1] == V3_FRAME_HEAD_1)
 		 {
+			 printk("MCU_TO_BLE_V3\r\n");
 			 V3_handle_mcu_data(RX_Sendata, USART_RX_CNT);
 		 }
 		 else
@@ -1272,12 +1277,25 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 	 }
 
 	 //数据到达事件处理，等待超时接收
-	 if (uart_panchip_evt_cache_get(uart_inst) == UART_EVENT_DATA) {
+	 if (uart_panchip_evt_cache_get(uart_inst) == UART_EVENT_DATA)
+	 {
 		 rec_num = TGT_UART->RFL;
-		 for (uint8_t i = 0; i < (rec_num - 1); i++) {
+		 if(rec_num > 1)
+		 {
+			for (uint8_t i = 0; i < (rec_num - 1); i++)
+			{
+			//  printk("MCU_BLE:%02x", RX_Sendata[USART_RX_CNT]);
 			 RX_Sendata[USART_RX_CNT++] = UART_ReceiveData(TGT_UART);
+			 if (USART_RX_CNT >= RX_BUFFER_SIZE)
+			 {
+				 printk("MCU_Too_much_data!\r\n");
+				 break;
+			 }
+			}
 		 }
+
 	 }
+
  }
 
  /*
@@ -1295,11 +1313,12 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 	 /* Verify uart_irq_update() */
 	 if (!uart_irq_update(dev)) {
 		 printk("retval should always be 1\n");
+		 uart_running = false;
 		 return;
 	 }
 
 	 ble_hid_uart_irq_rx_ready(dev);
-
+	 printk("uart_fifo_callback\n");
 	 uart_running = false;
  }
 
@@ -1622,10 +1641,9 @@ static void rssi_work_handler(struct k_work *work)
 	 // 可加打印
 	 //printf("==== BLE TX ====\n");
 	 //printk("len is : %d\n", len);
-	 #if DEBUG_PRINT_ENABLE
-	 log_debug("BLE send data: %.*s\n\r", len,data);
-	 log_debug("-------------------------\n");
-	 #endif
+	 printk("BLE send data:");
+	 show_reg3(data, len);
+
  }
 
  /*
@@ -1675,7 +1693,7 @@ void check_timeout_timer_cb(struct k_timer *timer) //对app的指令的处理
 {
     uint32_t now = k_uptime_get_32();
 
-    V3_timeout_check(now);
+//     V3_timeout_check(now);
     for (int i = 1; i < 5; i++)
     {
         if (cmd_wait[i].waiting && (now - cmd_wait[i].send_time_ms > 198))
@@ -1797,34 +1815,38 @@ void main(void)
 	user_parameter_init();//初始化用户参数
 
 	user_led_init();//初始化LED // 初始化双色灯，只让绿灯亮
-	//protocol_callbackfun_init();//与私有协议相关回调函数注册
+	// protocol_callbackfun_init();//与私有协议相关回调函数注册
 
 	ble_init();  //初始化BLE
 
+	SC7U22_SPI_Init(); // 配置SPI硬件和管脚
+	SC7U22_Init(); // 检测芯片ID、软复位、配置量程
+	SC7U22_BiasCalculate(); // 计算零偏（传感器需静止）
 
-	/******************  OTA SERVICE  *******************/
-	#if OTA_ENABLED
-	#ifdef CONFIG_MCUMGR_CMD_OS_MGMT
-		os_mgmt_register_group();
-	#endif
-	#ifdef CONFIG_MCUMGR_CMD_IMG_MGMT
-		img_mgmt_register_group();
-	#endif
-	#ifdef CONFIG_MCUMGR_CMD_STAT_MGMT
-		stat_mgmt_register_group();
-	#endif
-	#ifdef CONFIG_MCUMGR_SMP_BT
-		smp_bt_register();
-	#endif
-	#endif
+
+/******************  OTA SERVICE  *******************/
+#if OTA_ENABLED
+#ifdef CONFIG_MCUMGR_CMD_OS_MGMT
+	os_mgmt_register_group();
+#endif
+#ifdef CONFIG_MCUMGR_CMD_IMG_MGMT
+	img_mgmt_register_group();
+#endif
+#ifdef CONFIG_MCUMGR_CMD_STAT_MGMT
+	stat_mgmt_register_group();
+#endif
+#ifdef CONFIG_MCUMGR_SMP_BT
+	smp_bt_register();
+#endif
+#endif
 	/*****************************************************/
 
 
 	//Zephyr 默认 CONFIG_SYS_CLOCK_TICKS_PER_SEC=100，即10ms一个tick。
 	printk("Timer is set enter \n");
 	//初始化和启动定时器进行握手包指令的定时发送
-	k_timer_init(&handshake_timer, handshake_timer_cb, NULL);
-	k_timer_start(&handshake_timer, K_NO_WAIT, K_MSEC(1000)); //10秒定时发送一次
+	// k_timer_init(&handshake_timer, handshake_timer_cb, NULL);
+	// k_timer_start(&handshake_timer, K_NO_WAIT, K_MSEC(1000)); //10秒定时发送一次
 
 	// 初始化和启动定时器进行检查超时的定时发送 2秒定时
 	k_timer_init(&check_timeout_timer, check_timeout_timer_cb, NULL);

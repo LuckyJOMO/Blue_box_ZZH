@@ -53,6 +53,7 @@ static void V3_handle_read_write(const uint8_t *frame, uint8_t cmd)
 		uint8_t err_frame[V3_FRAME_SIZE_ERROR];
 		V3_build_error_reply(err_cmd, grp, V3_ERR_CRC, err_frame);
 		bt_ven_notify(err_frame, V3_FRAME_SIZE_ERROR);
+		return;
 	}
 
 	/* Forward to MCU */
@@ -68,15 +69,21 @@ static void V3_handle_read_write(const uint8_t *frame, uint8_t cmd)
 
 static void V3_handle_mcu_reply(const uint8_t *frame, uint8_t cmd)
 {
+	uint8_t grp = frame[3]; //指定的地址
 	printk("[V3] MCU reply: cmd 0x%02X\n", cmd);
 	if (!V3_crc_verify(frame, V3_CRC_COUNT_NORMAL, V3_CRC_OFFSET_NORMAL))
 	{
 		printk("[V3] MCU reply CRC error,command: %02x \n", cmd);
+		uint8_t err_cmd = (cmd == V3_CMD_WRITE_CTRL) ? V3_CMD_WRITE_ERR : V3_CMD_READ_ERR;
+		uint8_t err_frame[V3_FRAME_SIZE_ERROR];
+		V3_build_error_reply(err_cmd, grp, V3_ERR_CRC, err_frame);
+		bt_ven_notify(err_frame, V3_FRAME_SIZE_ERROR);
 		return;
 	}
 	bt_ven_notify((uint8_t *)frame, V3_FRAME_SIZE_NORMAL);
 	v3_state.waiting_mcu_reply = false;
-	printk("[V3] MCU reply forwarded to APP\n");
+	// printk("[V3] MCU reply forwarded to APP\n");
+
 }
 static void V3_parse_buffer(const uint8_t *data, uint16_t len, bool from_app)
 {
@@ -163,6 +170,7 @@ static void V3_parse_buffer(const uint8_t *data, uint16_t len, bool from_app)
 				else
 				{
 					V3_handle_mcu_reply(frame, cmd);
+					// show_reg3(data, len);
 				}
 			}
 		}
@@ -189,7 +197,7 @@ void V3_timeout_check(uint32_t now_ms)
 
 	if ((now_ms - v3_state.send_time_ms) >= V3_MCU_REPLY_TIMEOUT_MS)
 	{
-		printk("[V3] MCU reply timeout for cmd 0x%02X GRP 0x%02X\n", v3_state.pending_cmd,v3_state.pending_grp);
+		printk("[V3] MCU reply timeout for cmd 0x%02XGRP 0x%02X\n", v3_state.pending_cmd,v3_state.pending_grp);
 
 		uint8_t err_cmd = (v3_state.pending_cmd == V3_CMD_WRITE_CTRL) ? V3_CMD_WRITE_ERR : V3_CMD_READ_ERR;
 

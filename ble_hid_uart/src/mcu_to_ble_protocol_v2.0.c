@@ -27,7 +27,7 @@ const char log_tag_const_e_MCU2BLE = 1;
 #endif
 
 
-#define MCU_MAX_LEN          128          // 蓝牙芯片与主控收发数据最大长度 
+#define MCU_MAX_LEN          128          // 蓝牙芯片与主控收发数据最大长度
 
 #define BLE_RESEND_MAX_COUNT  3
 #define BLE_RESEND_TIMEOUT_MS 2000
@@ -36,7 +36,7 @@ extern int handshake_retry_count; //ble向主控发送握手指令的次数计�
 //----------------------MCU发送消息----------------------------------------
 static void *g_protocol_event_ctx = NULL;  // 协议事件回调用户上下文
 
-//-----------app to mcu data-------------   
+//-----------app to mcu data-------------
 typedef void (*ble_uart_send_callback_t)(const uint8_t *data, uint16_t len);
 
 static ble_uart_send_callback_t g_ble_uart_send_cb = NULL;
@@ -96,24 +96,24 @@ void ble_to_mcu_report_link_state(int state)
 
 extern void TGT_SendMultiData(const uint8_t *data, size_t size);
 
-//--------------------------------------------------------------- 
+//---------------------------------------------------------------
 void ble_to_mcu_resend_check(void) // 蓝牙主动上报数据重发
 {
-    if (ble_resend_ctx.wait_ack) 
+    if (ble_resend_ctx.wait_ack)
     {
-        if (timer_get_ms() - ble_resend_ctx.last_send_time > BLE_RESEND_TIMEOUT_MS) 
+        if (timer_get_ms() - ble_resend_ctx.last_send_time > BLE_RESEND_TIMEOUT_MS)
         {
-            if (ble_resend_ctx.resend_count < BLE_RESEND_MAX_COUNT) 
+            if (ble_resend_ctx.resend_count < BLE_RESEND_MAX_COUNT)
             {
-                if (g_ble_send_func) 
+                if (g_ble_send_func)
                 {
                     g_ble_send_func(ble_resend_ctx.last_send_buf, ble_resend_ctx.last_send_len);
                 }
                 ble_resend_ctx.last_send_time = timer_get_ms();
                 ble_resend_ctx.resend_count++;
                 log_info("重发BLE主动上报数据,第%d次\n", ble_resend_ctx.resend_count);
-            } 
-            else 
+            }
+            else
             {
                 log_info("BLE主动上报数据重发三次失败,报错！");
                 ble_resend_ctx.wait_ack = 0;
@@ -149,7 +149,7 @@ bool Judge_stringisdata(const char *data)
 //-----------------------新版协议-----------------------------------------
 #define BLE_PROTOCOL_CMD_LEN 20
 //握手指令
-const uint8_t HANDSHAKE_CMD[BLE_PROTOCOL_CMD_LEN] ={   
+const uint8_t HANDSHAKE_CMD[BLE_PROTOCOL_CMD_LEN] ={
     0x5A, 0xA5 ,0x00, 0x00 ,0x00 ,0x00 ,0x00 ,0x00, 0x00, 0x00 ,
     0x00 ,0x00 ,0x00, 0x00 ,0x3C, 0x00 ,0x00, 0x00, 0x0C, 0x03
 };
@@ -184,12 +184,12 @@ cmd_wait_t cmd_wait[5] = {0}; // 0:握手 1:查询 2:解锁 3:锁定 4:故障查
  * return: void
  * description:  发送BLE协议指令
  */
-// void reply_app_status(app_cmd_type_t cmd, uint8_t result_code) 
+// void reply_app_status(app_cmd_type_t cmd, uint8_t result_code)
 // {
 //     uint8_t reply[4] = {0xAA, cmd, result_code, 0x55};
 //     bt_ven_notify(reply, 4);
 // }
-void reply_app_status(app_cmd_type_t cmd, uint8_t result_code) 
+void reply_app_status(app_cmd_type_t cmd, uint8_t result_code)
 {
     uint8_t reply[4] = {0xAA, cmd, result_code, 0x55};
 
@@ -212,30 +212,30 @@ void reply_app_status(app_cmd_type_t cmd, uint8_t result_code)
  */
 static void Handle_mcu_replydata(const char *data, uint16_t datalen, ble_cmd_type_t cmd_type)
 {
-    printk("Handle_mcu_replydata: datalen=%d, cmd_type=%d\n", datalen, cmd_type);
+//     printk("Handle_mcu_replydata: datalen=%d, cmd_type=%d\n", datalen, cmd_type);
     // 1. 数据长度判断
-    if (datalen > MCU_MAX_LEN) 
+    if (datalen > MCU_MAX_LEN)
     {
         return; // 超出最大长度，直接返回
     }
 
     // 2. 处理主控几种应答
-    if (datalen == 2) 
+    if (datalen == 2)
     {
         //printk("Handle cmd of mcu reply \n");
 
         const uint8_t *pdata = (const uint8_t *)data;
 
         // 正常收到主控回复，清除等待标志
-        if (cmd_type >= 0 && cmd_type < BLE_CMD_MAX && cmd_wait[cmd_type].waiting) 
+        if (cmd_type >= 0 && cmd_type < BLE_CMD_MAX && cmd_wait[cmd_type].waiting)
         {
             uint32_t now = k_uptime_get_32();
-            if (now - cmd_wait[cmd_type].send_time_ms <= 198) 
+            if (now - cmd_wait[cmd_type].send_time_ms <= 198)
             {
                 cmd_wait[cmd_type].waiting = false;
                 // 处理正常回复逻辑
                 printk("MCU reply received for cmd %d within 2s\n", cmd_type);
-            } 
+            }
             // 超时放在定时检测中检查
         }
 
@@ -261,7 +261,7 @@ static void Handle_mcu_replydata(const char *data, uint16_t datalen, ble_cmd_typ
         }
         else if (cmd_type == BLE_CMD_UNLOCK_STATUS_RSP)//查询解锁状态指令
         {
-            log_info("Controler Status is here\r"); 
+            log_info("Controler Status is here\r");
             //查询解锁状态
             if (pdata[0] == 0x69 && pdata[1] == 0x96)  // 解锁状态：已解锁
             {
@@ -276,7 +276,7 @@ static void Handle_mcu_replydata(const char *data, uint16_t datalen, ble_cmd_typ
                 g_controler_state.active_ok = false; // 设备处于未激活状态，需要激活
                 uint8_t result_code = 0x01; //未解锁状态
                 reply_app_status(APP_CMD_QUERY_UNLOCK_RSP, result_code);//回复app
-                log_info("Controler Status is lock\r"); 
+                log_info("Controler Status is lock\r");
                 return;
             }
             set_led_state(LED_STATE_GREEN_ON); // 绿灯常亮
@@ -314,23 +314,23 @@ static void Handle_mcu_replydata(const char *data, uint16_t datalen, ble_cmd_typ
             log_info("Controler Fault Query: Byte0=0x%02X, Byte1=0x%02X\n", pdata[0], pdata[1]);
 
             // 检查是否有故障
-            if (!(pdata[0] == 0x00 && pdata[1] == 0x00)) 
+            if (!(pdata[0] == 0x00 && pdata[1] == 0x00))
             {
                 set_led_state(LED_STATE_RED_ON); // 红灯常亮
             }
             return;
-            
+
         }
-       
+
     }
     set_led_state(LED_STATE_GREEN_ON); // 绿灯常亮
     // 3. 其他数据处理（如有需要，可转发或忽略）
-    user_print_auto("MCU Send Other Data", (const uint8_t *)data, datalen);
+//     user_print_auto("MCU Send Other Data", (const uint8_t *)data, datalen);
 }
 /*
  * fun:  Handle_protocol_data
- * param:  const char *data:入参数据指针, 
- *         uint16_t len:数据长度, 
+ * param:  const char *data:入参数据指针,
+ *         uint16_t len:数据长度,
  *         void (*user_ble_notify_fun)(const char *data, uint16_t len):用户回调函数
  * return: void
  * description: 主控数据处理函数
@@ -342,20 +342,21 @@ void Handle_protocol_data(const char *data, uint16_t len)
     {
         return;
     }
-    user_print_auto("Controler send Data to BLE", (const uint8_t *)data, len);
+//     printk("Controler send Data to BLE");
+//     show_reg3(data,len);
     /// 处理控制器回复数据
-    Handle_mcu_replydata(data, len, g_controler_state.last_cmd_type); 
+    Handle_mcu_replydata(data, len, g_controler_state.last_cmd_type);
 }
 
 /**
  * @brief 发送新协议指令到主控
  * @param cmd_type 0=握手指令，1=查询解锁状态指令，2=解锁指令 3=锁定指令
- * 
+ *
  */
 void BLE_send_protocol_cmd(ble_cmd_type_t cmd_type)
 {
     // 只有握手成功后，才允许发送除握手包以外的指令
-    if (cmd_type != BLE_CMD_HANDSHAKE_RSP && !g_controler_state.handshake_ok) 
+    if (cmd_type != BLE_CMD_HANDSHAKE_RSP && !g_controler_state.handshake_ok)
     {
         log_info("Handshake not completed, cannot send cmd %d\n", cmd_type);
         return;
@@ -381,15 +382,15 @@ void BLE_send_protocol_cmd(ble_cmd_type_t cmd_type)
         default:
             return;
     }
-    
+
     //记录最近一次发送的指令类型
-    g_controler_state.last_cmd_type = cmd_type; 
+    g_controler_state.last_cmd_type = cmd_type;
 
     cmd_wait[cmd_type].waiting = true;
     cmd_wait[cmd_type].send_time_ms = k_uptime_get_32(); //记录当前时间
-    
-  
-    
+
+
+
     //--打印发送给控制器的数据---
     user_print_auto("BLE send data to Contoler", (const uint8_t *)buf, BLE_PROTOCOL_CMD_LEN);
 

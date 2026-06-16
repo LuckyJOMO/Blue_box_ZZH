@@ -50,7 +50,7 @@ void V3_handle_app_data(const uint8_t *data, uint16_t len);
 void V3_handle_mcu_data(const uint8_t *data, uint16_t len);
 void V3_timeout_check(uint32_t now_ms);
 
-
+extern  void show_reg3(uint8_t const *data, uint32_t len);
 extern int bt_ven_notify(uint8_t *data, uint32_t len);
 extern void ble_send_data(const char *data, uint16_t len);
 

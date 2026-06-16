@@ -164,6 +164,9 @@ void user_parameter_init(void);
 
 extern controler_state_t g_controler_state;
 extern void ble_send_data(const char *data, uint16_t len);
+extern void show_reg3(uint8_t const *data, uint32_t len);
+extern int bt_ven_notify(uint8_t *data, uint32_t len);
+
 #endif // MCU_TO_BLE_PROTOCOL_V2_H
 
 
