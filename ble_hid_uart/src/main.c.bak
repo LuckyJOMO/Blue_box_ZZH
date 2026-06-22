@@ -1239,7 +1239,18 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
     }
 }
 
-
+ // 根据V3帧命令字获取帧长度，0表示未知命令
+ static uint16_t v3_frame_size_from_cmd(uint8_t cmd)
+ {
+	 switch (cmd) {
+	 case V3_CMD_HANDSHAKE:  return V3_FRAME_SIZE_HANDSHAKE;  // 9
+	 case V3_CMD_READ_CTRL:
+	 case V3_CMD_WRITE_CTRL: return V3_FRAME_SIZE_NORMAL;     // 20
+	 case V3_CMD_WRITE_ERR:
+	 case V3_CMD_READ_ERR:   return V3_FRAME_SIZE_ERROR;      // 7
+	 default:                return 0;
+	 }
+ }
 
  //----uart接收数据处理函数----
  void ble_hid_uart_irq_rx_ready(const struct device *dev)
@@ -1256,19 +1267,58 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 			 RX_Sendata[USART_RX_CNT++] = UART_ReceiveData(TGT_UART);
 		 }
 
-			 // V3写回复可能分包到达，仅等待MCU回复时累积拼接（分包首字节必为53）
-		 if (USART_RX_CNT > 0 && RX_Sendata[0] == V3_FRAME_HEAD_0 && RX_Sendata[1] == V3_FRAME_HEAD_1)
+		 // 仅在等待MCU回复时做V3分包累积，避免仪表数据误触发
+		 if (V3_is_waiting_mcu_reply())
 		 {
+			 // 搜索V3帧头 0x53 0x35
+			 int16_t v3_start = -1;
+			 for (uint16_t i = 0; i + 1 < USART_RX_CNT; i++)
+			 {
+				 if (RX_Sendata[i] == V3_FRAME_HEAD_0 && RX_Sendata[i + 1] == V3_FRAME_HEAD_1)
+				{
+					 v3_start = i;
+					 break;
+				}
+			 }
+
+			 if (v3_start < 0)
+			 {
+				 // 无V3帧头但正在等待MCU回复，保留数据累积
+				 return;
+			 }
+
+			 // V3帧头之前的数据按原有逻辑处理
+			 if (v3_start > 0)
+			 {
+				 Handle_protocol_data((const char *)RX_Sendata, v3_start);
+				 handle_UC_uart_cmd(RX_Sendata, v3_start);
+				 memmove(RX_Sendata, &RX_Sendata[v3_start], USART_RX_CNT - v3_start);
+				 USART_RX_CNT -= v3_start;
+			 }
+
+			 // 判断V3帧是否完整
 			 if (USART_RX_CNT >= 3)
 			 {
-				 uint16_t frame_size = V3_frame_size_from_cmd(RX_Sendata[2]);
-				 if (frame_size > 0 && USART_RX_CNT >= frame_size) {
+				 uint8_t cmd = RX_Sendata[2];
+				 uint16_t frame_size = v3_frame_size_from_cmd(cmd);
+				 if (frame_size > 0 && USART_RX_CNT >= frame_size)
+				 {
+					 // 完整V3帧就绪
+					 // 理论上分包只出现在控制器回复写命令，完整帧后不应有剩余数据
 					 show_reg3(RX_Sendata, frame_size);
 					 V3_handle_mcu_data(RX_Sendata, frame_size);
 					 USART_RX_CNT = 0;
 				 }
+				 // 帧不完整则保留数据等待更多
 			 }
+			 // USART_RX_CNT<3 则保留等待
 			 return;
+		 }
+
+		 // 非等待状态：原有逻辑
+		 if (USART_RX_CNT > 0 && RX_Sendata[0] == V3_FRAME_HEAD_0 && RX_Sendata[1] == V3_FRAME_HEAD_1)
+		 {
+			 V3_handle_mcu_data(RX_Sendata, USART_RX_CNT);
 		 }
 		 else
 		 {
@@ -1276,7 +1326,7 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 			 handle_UC_uart_cmd(RX_Sendata, USART_RX_CNT);
 		 }
 
-		//  show_reg3(RX_Sendata, USART_RX_CNT);
+		 show_reg3(RX_Sendata, USART_RX_CNT);
 		 USART_RX_CNT = 0;
 	 }
 

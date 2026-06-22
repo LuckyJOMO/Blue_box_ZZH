@@ -22,7 +22,7 @@
 #define V3_CRC_OFFSET_ERROR 		5 /* CL=byte[5], CH=byte[6] */
 
 /* MCU恢复等待时间200ms */
-#define V3_MCU_REPLY_TIMEOUT_MS 200
+#define V3_MCU_REPLY_TIMEOUT_MS 800
 
 typedef enum {
 	V3_CMD_WRITE_CTRL = 0x00, /* Write controller */
@@ -49,6 +49,8 @@ static v3_bridge_state_t v3_state;
 void V3_handle_app_data(const uint8_t *data, uint16_t len);
 void V3_handle_mcu_data(const uint8_t *data, uint16_t len);
 void V3_timeout_check(uint32_t now_ms);
+bool V3_is_waiting_mcu_reply(void);
+uint16_t V3_frame_size_from_cmd(uint8_t cmd);
 
 extern  void show_reg3(uint8_t const *data, uint32_t len);
 extern int bt_ven_notify(uint8_t *data, uint32_t len);

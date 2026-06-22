@@ -8,6 +8,7 @@
 	cpu-power-states = <>;
 };
 
+
 / {
 	model = "Panchip PAN108X-XB1 Evaluation Board";
 	compatible = "panchip,pan108xxb1-evb", "panchip,pan1080xb1";
@@ -56,6 +57,21 @@
 
 &clk_rch {
 	status = "disabled";
+};
+
+/ {
+	soc {
+		pin-controller@40030000 {
+			/* I2C0: P12=SCL, P13=SDA */
+			DT_PAN_PINS(p1, 2, i2c0_scl, PAN1080_PIN_FUNC_P12_I2C0_SCL, bias-pull-up, input-enable);
+			DT_PAN_PINS(p1, 3, i2c0_sda, PAN1080_PIN_FUNC_P13_I2C0_SDA, bias-pull-up, input-enable);
+		};
+	};
+};
+
+&i2c0 {
+	pinctrl-0 = <&p1_2_i2c0_scl &p1_3_i2c0_sda>;
+	status = "okay";
 };
 
 &rcc {
