@@ -392,7 +392,7 @@ void BLE_send_protocol_cmd(ble_cmd_type_t cmd_type)
 
 
     //--打印发送给控制器的数据---
-    user_print_auto("BLE send data to Contoler", (const uint8_t *)buf, BLE_PROTOCOL_CMD_LEN);
+//     user_print_auto("BLE send data to Contoler", (const uint8_t *)buf, BLE_PROTOCOL_CMD_LEN);
 
     //发送指令到MCU控制器
     //void ble_send_data(const char *data, uint16_t len);

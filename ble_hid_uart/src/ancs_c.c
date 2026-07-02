@@ -18,6 +18,7 @@
 #include <sys/byteorder.h>
 
 #include "ancs_c.h"
+#include "controller_ota.h"  // 添加 controller_ota.h 以获取 TGT_SendMultiData 函数声明
 
 extern uint8_t qrcode[100];
 extern uint8_t qrcode_length;

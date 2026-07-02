@@ -54,8 +54,9 @@
 #include "dev_led.h"
 
 #include "mcu_to_ble_protocol_v3.0.h"
+#include "i2c_eeprom.h"
+#include "controller_ota.h"
 
-#include "sc7u22_spi.h"
 /******************  OTA INCLUDE *******************/
 #if OTA_ENABLED
 #ifdef CONFIG_MCUMGR_CMD_OS_MGMT
@@ -1236,13 +1237,13 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
     if (len == 3 && data[0] == 0xAA && data[1] == 0x10 && data[2] == 0x55)
 	{
         send_mac_to_uc();
-    }
+    	}
 }
 
 
 
  //----uart接收数据处理函数----
- void ble_hid_uart_irq_rx_ready(const struct device *dev)
+ void Ble_hid_uart_irq_rx_ready(const struct device *dev)
  {
 	 UART_T *uart_inst = (UART_T *)(*(uint32_t *)dev->config);
 	 uint8_t rec_num;
@@ -1255,26 +1256,43 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 		 {
 			 RX_Sendata[USART_RX_CNT++] = UART_ReceiveData(TGT_UART);
 		 }
+		 show_reg3(RX_Sendata, USART_RX_CNT);
+		/* Check for controller OTA bootloader reply (header: EB 90 EB 90 EB 90) */
+		bool ota_handled = false;
+		while (USART_RX_CNT >= CTRL_RSP_FRAME_LEN && RX_Sendata[0] == CTRL_OTA_HEAD_BYTE &&
+		       RX_Sendata[1] == CTRL_OTA_HEAD_BYTE2 && RX_Sendata[2] == CTRL_OTA_HEAD_BYTE &&
+		       RX_Sendata[3] == CTRL_OTA_HEAD_BYTE2 && RX_Sendata[4] == CTRL_OTA_HEAD_BYTE &&
+		       RX_Sendata[5] == CTRL_OTA_HEAD_BYTE2 && RX_Sendata[6] == 0x08)
+		{
+			Ctrl_ota_handle_reply(RX_Sendata[7]);
+			ota_handled = true;
 
-			 // V3写回复可能分包到达，仅等待MCU回复时累积拼接（分包首字节必为53）
-		 if (USART_RX_CNT > 0 && RX_Sendata[0] == V3_FRAME_HEAD_0 && RX_Sendata[1] == V3_FRAME_HEAD_1)
-		 {
-			 if (USART_RX_CNT >= 3)
-			 {
-				 uint16_t frame_size = V3_frame_size_from_cmd(RX_Sendata[2]);
-				 if (frame_size > 0 && USART_RX_CNT >= frame_size) {
-					 show_reg3(RX_Sendata, frame_size);
+			USART_RX_CNT -= CTRL_RSP_FRAME_LEN;
+			if (USART_RX_CNT > 0)
+			{
+				memmove(RX_Sendata, RX_Sendata + CTRL_RSP_FRAME_LEN, USART_RX_CNT);
+			}
+		}
+		if (ota_handled) {
+			USART_RX_CNT = 0;
+			return;
+		}
+
+		// V3写回复可能分包到达，仅等待MCU回复时累积拼接（分包首字节必为53）
+		else if (USART_RX_CNT > 0 && RX_Sendata[0] == V3_FRAME_HEAD_0 && RX_Sendata[1] == V3_FRAME_HEAD_1) {
+			if (USART_RX_CNT >= 3) {
+				uint16_t frame_size = V3_frame_size_from_cmd(RX_Sendata[2]);
+				if (frame_size > 0 && USART_RX_CNT >= frame_size) {
+					//  show_reg3(RX_Sendata, frame_size);
 					 V3_handle_mcu_data(RX_Sendata, frame_size);
 					 USART_RX_CNT = 0;
 				 }
 			 }
 			 return;
-		 }
-		 else
-		 {
-			 Handle_protocol_data((const char *)RX_Sendata, USART_RX_CNT);
-			 handle_UC_uart_cmd(RX_Sendata, USART_RX_CNT);
-		 }
+		} else {
+			Handle_protocol_data((const char *)RX_Sendata, USART_RX_CNT);
+			handle_UC_uart_cmd(RX_Sendata, USART_RX_CNT);
+		}
 
 		//  show_reg3(RX_Sendata, USART_RX_CNT);
 		 USART_RX_CNT = 0;
@@ -1320,7 +1338,7 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 		 return;
 	 }
 
-	 ble_hid_uart_irq_rx_ready(dev);
+	 Ble_hid_uart_irq_rx_ready(dev);
 	//  printk("uart_fifo_callback");
 	 uart_running = false;
  }
@@ -1649,11 +1667,10 @@ static void rssi_work_handler(struct k_work *work)
 	 // 可加打印
 	 //printf("==== BLE TX ====\n");
 	 //printk("len is : %d\n", len);
-	 printk("BLE MCU:");
-	 show_reg3(data, len);
+	//  printk("BLE MCU:");
+	//  show_reg3(data, len);
 
  }
-
  /*
   * fun: protocol_fun_init
   * param:  void
@@ -1780,6 +1797,8 @@ void check_timeout_timer_cb(struct k_timer *timer) //对app的指令的处理
     }
 }
 
+
+
 //----------for test-------------
 // void check_timeout_timer_cb(struct k_timer *timer)
 // {
@@ -1826,17 +1845,20 @@ void main(void)
 	// protocol_callbackfun_init();//与私有协议相关回调函数注册
 
 	ble_init();  //初始化BLE
+	Ota_init();	//初始化BLE_OTA
 
-	SC7U22_SPI_Init(); // 配置SPI硬件和管脚
-	SC7U22_Init(); // 检测芯片ID、软复位、配置量程
-	SC7U22_BiasCalculate(); // 计算零偏（传感器需静止）
+	I2c_eeprom_init();
 
-	i2c_mram_init();
+	uint8_t flag = 0;
+	EepromWrite(CTRL_OTA_FLAG_ADDR, &flag, 1);
+	Ctrl_ota_init(); //初始化CON_OTA
+
+
 
 /******************  OTA SERVICE  *******************/
 #if OTA_ENABLED
 #ifdef CONFIG_MCUMGR_CMD_OS_MGMT
-	os_mgmt_register_group();
+		os_mgmt_register_group();
 #endif
 #ifdef CONFIG_MCUMGR_CMD_IMG_MGMT
 	img_mgmt_register_group();
@@ -1849,18 +1871,31 @@ void main(void)
 #endif
 #endif
 	/*****************************************************/
+	while(1)
+	{
+		if (Ctrl_ota_is_active())
+		{
+			Ctrl_ota_process();
+			k_msleep(5);
+		} else
+		{
+			k_msleep(100);
+			break;
 
-
+		}
+	}
 	//Zephyr 默认 CONFIG_SYS_CLOCK_TICKS_PER_SEC=100，即10ms一个tick。
-	printk("Timer is set enter \n");
-	//初始化和启动定时器进行握手包指令的定时发送
-	k_timer_init(&handshake_timer, handshake_timer_cb, NULL);
-	k_timer_start(&handshake_timer, K_NO_WAIT, K_MSEC(1000)); //10秒定时发送一次
 
-	// 初始化和启动定时器进行检查超时的定时发送 2秒定时
-	k_timer_init(&check_timeout_timer, check_timeout_timer_cb, NULL);
-	k_timer_start(&check_timeout_timer, K_NO_WAIT, K_MSEC(200)); // 2秒周期
-	printk("Timer is set ready \n");
+		printk("Timer is set enter \n");
+		//初始化和启动定时器进行握手包指令的定时发送
+		k_timer_init(&handshake_timer, handshake_timer_cb, NULL);
+		k_timer_start(&handshake_timer, K_NO_WAIT, K_MSEC(1000)); //1秒定时发送一次
+
+		// 初始化和启动定时器进行检查超时的定时发送 200ms定时
+		k_timer_init(&check_timeout_timer, check_timeout_timer_cb, NULL);
+		k_timer_start(&check_timeout_timer, K_NO_WAIT, K_MSEC(200)); // 200ms周期
+		printk("Timer is set ready \n");
+
 
 
 	#if BLE_CONTROLER_SIMU_ENABLED   // 等于1说明打开模拟，那么下面的要不使用

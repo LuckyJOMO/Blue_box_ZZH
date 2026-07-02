@@ -1,5 +1,6 @@
 #include "mcu_to_ble_protocol_v2.0.h"
 #include "mcu_to_ble_protocol_v3.0.h"
+#include "ble_ota.h"
 #include <string.h>
 #include <stdio.h>
 #include "kernel.h"
@@ -126,7 +127,8 @@ static void V3_parse_buffer(const uint8_t *data, uint16_t len, bool from_app)
 			if (offset + pkt_len > len)
 				break; // 数据不够一帧，等待下次补齐
 			// 检查包尾
-			if (data[offset + pkt_len - 1] == APP_FRAME_TRAIL) {
+			if (data[offset + pkt_len - 1] == APP_FRAME_TRAIL)
+			{
 				//printk("APP send data to BLE,cmd = %02X\r\n", cmd);
 				// 识别成功，处理该帧
 				Handle_app_cmd_and_reply(cmd, data + offset, pkt_len);
@@ -148,13 +150,26 @@ static void V3_parse_buffer(const uint8_t *data, uint16_t len, bool from_app)
 				case V3_CMD_WRITE_CTRL: // 53 35 00 GRP [14字节有效数据] CL CH 写控制器
 				  pkt_len = V3_FRAME_SIZE_NORMAL;
 				  break;
+				case OTA_CMD_START: // OTA 烧写请求, 仅 APP→BLE
+				  pkt_len = data[offset + 3];
+				  if (pkt_len != OTA_FRAME_START_REQ_SIZE) { offset++; continue; }
+				  break;
+				case OTA_CMD_DATA: // OTA 文件数据传输, 仅 APP→BLE
+				  pkt_len = data[offset + 3];
+				  if (pkt_len < OTA_FRAME_DATA_MIN_SIZE || pkt_len > OTA_FRAME_DATA_MAX_SIZE)
+				   { offset++; continue; }
+				  break;
+				case OTA_CMD_DATA_RETRY:
+				case OTA_CMD_ERASE_RETRY: // OTA 烧写请求, 仅 APP→BLE
+					pkt_len = data[offset + 3];
+					printk("2\r\n");
+					if (pkt_len != OTA_FRAME_FLASH_ERASE_RSP_SIZE) {offset++; continue;}
+					break;
 				default:
-				  offset++;
-				  continue;
-			}
-
+				offset++;
+				continue;
+				}
 			if (offset + pkt_len > len) break; // 数据不够一帧，等待下次补齐
-
 			const uint8_t *frame = &data[offset];
 
 			if(cmd == V3_CMD_HANDSHAKE)
@@ -176,6 +191,22 @@ static void V3_parse_buffer(const uint8_t *data, uint16_t len, bool from_app)
 					V3_handle_mcu_reply(frame, cmd);
 					// show_reg3(data, len);
 				}
+			}
+			else if (cmd == OTA_CMD_START && from_app)
+			{
+				OtaHandleStartRequest(frame);
+			}
+			else if (cmd == OTA_CMD_DATA && from_app)
+			{
+				OtaHandleDataPacket(frame, pkt_len);
+			}
+			else if (cmd == OTA_CMD_DATA_RETRY && from_app)
+			{
+				OtaPackageRetry(frame);
+			}
+			else if (cmd == OTA_CMD_ERASE_RETRY && from_app)
+			{
+				OtaEraseRetry(frame);
 			}
 		}
 		// 移动到下一个包

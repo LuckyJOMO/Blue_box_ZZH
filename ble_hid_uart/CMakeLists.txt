@@ -11,8 +11,7 @@ FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE
   ${app_sources}
   src/ancs_c.c
-  src/sc7u22_spi.c
-  src/i2c_mram.c
+  src/i2c_eeprom.c
   )
 
 zephyr_library_include_directories(${ZEPHYR_BASE}/samples/bluetooth)
