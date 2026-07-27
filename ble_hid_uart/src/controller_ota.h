@@ -71,4 +71,6 @@ void Ctrl_ota_setota_readyflag(uint32_t file_length, uint32_t file_crc);
 extern void TGT_SendMultiData(const uint8_t *data, size_t size);
 extern int bt_ven_notify(uint8_t *data, uint32_t len);
 
+
+
 #endif /* CONTROLLER_OTA_H */

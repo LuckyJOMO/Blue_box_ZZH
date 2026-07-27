@@ -3,26 +3,30 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define V3_FRAME_HEAD_0 0x53
-#define V3_FRAME_HEAD_1 0x35
+#define V3_FRAME_HEAD_0    0x53
+#define V3_FRAME_HEAD_1    0x35
+#define V3_OTA_FLAG_FINISH 0x00
+#define V3_OTA_FLAG_NEED   0x01
 
 /* Frame sizes */
 #define V3_FRAME_SIZE_HANDSHAKE 	9 /* 53 35 01 R0-R3(4) CRC(2) */
 #define V3_FRAME_SIZE_NORMAL 		20 /* 53 35 CMD GRP DATA(14) CRC(2) */
 #define V3_FRAME_SIZE_ERROR 		7 /* 53 35 ECMD GRP STA CRC(2) */
+#define V3_FRAME_SIZE_HANDSHAKE_REPLY   10 /* 53 35 01 00/01  R0-R3(4) CRC(2) */
 
 /* CRC payload byte counts (from byte index 2 = after 53 35 header) */
 #define V3_CRC_COUNT_HANDSHAKE 		5 /* CMD(01) + 4 random bytes */
 #define V3_CRC_COUNT_NORMAL 		16 /* CMD + GRP + 14 data bytes */
 #define V3_CRC_COUNT_ERROR 		3 /* ECMD(1F/10) + GRP + STA */
+#define V3_CRC_COUNT_HANDSHAKE_REPLY    6 /* CMD(01) + 0x00/0x01 + 4 random bytes */
 
 /* CRC byte offsets within frame (CL stored first, then CH) */
 #define V3_CRC_OFFSET_HANDSHAKE 	7 /* CL=byte[7], CH=byte[8] */
 #define V3_CRC_OFFSET_NORMAL 		18 /* CL=byte[18], CH=byte[19] */
 #define V3_CRC_OFFSET_ERROR 		5 /* CL=byte[5], CH=byte[6] */
-
+#define V3_CRC_OFFSET_HANDSHAKE_REPLY 	8 /* CL=byte[8], CH=byte[9] */
 /* MCU恢复等待时间200ms */
-#define V3_MCU_REPLY_TIMEOUT_MS 800
+#define V3_MCU_REPLY_TIMEOUT_MS 80
 
 typedef enum {
 	V3_CMD_WRITE_CTRL = 0x00, /* Write controller */

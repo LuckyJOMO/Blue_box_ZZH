@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -p \"G:/ZZH_WORKSPACE/Central_Control_ZZH/Blue_box/LKS07X_Bootloader_UART/Linko.LKS07x.1.2.0.pack\" \"SVD/LKS32MC07x.svd\")"
+    ]
+  }
+}

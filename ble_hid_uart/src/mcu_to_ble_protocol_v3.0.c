@@ -1,6 +1,8 @@
 #include "mcu_to_ble_protocol_v2.0.h"
 #include "mcu_to_ble_protocol_v3.0.h"
 #include "ble_ota.h"
+#include "i2c_eeprom.h"
+#include "controller_ota.h"
 #include <string.h>
 #include <stdio.h>
 #include "kernel.h"
@@ -33,6 +35,34 @@ static void V3_build_error_reply(uint8_t error_cmd, uint8_t grp, uint8_t sta, ui
 	tx_frame[V3_CRC_OFFSET_ERROR] = (uint8_t)(crc & 0xFF);
 	tx_frame[V3_CRC_OFFSET_ERROR + 1] = (uint8_t)((crc >> 8) & 0xFF);
 }
+
+static void V3_build_handshake_reply(uint8_t *handshake_buff, uint8_t *frame)
+{
+	handshake_buff[0] = V3_FRAME_HEAD_0;
+	handshake_buff[1] = V3_FRAME_HEAD_1;
+	handshake_buff[2] = V3_CMD_HANDSHAKE;
+	uint8_t flag = 0;
+	EepromRead(CTRL_OTA_FLAG_ADDR, &flag, 1);
+
+	printk("[CTRL_OTA] Boot check: flag=0x%02X\n", flag);
+
+	if (flag != CTRL_OTA_FLAG_READY)
+	{
+		handshake_buff[3] = V3_OTA_FLAG_FINISH;
+	}
+	else
+	{
+		handshake_buff[3] = V3_OTA_FLAG_NEED;
+	}
+	handshake_buff[4] = frame[3];
+	handshake_buff[5] = frame[4];
+	handshake_buff[6] = frame[5];
+	handshake_buff[7] = frame[6];
+
+	uint16_t crc = V3_crc_calculate(handshake_buff, V3_CRC_COUNT_HANDSHAKE_REPLY);
+	handshake_buff[V3_CRC_OFFSET_HANDSHAKE_REPLY] = (uint8_t)(crc & 0xFF);
+	handshake_buff[V3_CRC_OFFSET_HANDSHAKE_REPLY + 1] = (uint8_t)((crc >> 8) & 0xFF);
+}
 static void V3_handle_handshake(const uint8_t *frame)
 {
 	if (!V3_crc_verify(frame, V3_CRC_COUNT_HANDSHAKE, V3_CRC_OFFSET_HANDSHAKE))
@@ -40,8 +70,10 @@ static void V3_handle_handshake(const uint8_t *frame)
 		printk("[V3] Handshake CRC error, dropping\n");
 		return;
 	}
+	uint8_t handshake_buff[V3_FRAME_SIZE_HANDSHAKE_REPLY];
+	V3_build_handshake_reply((uint8_t *)handshake_buff, (uint8_t *)frame);
 	printk("[V3] Handshake OK, echoing back\n");
-	bt_ven_notify((uint8_t *)frame, V3_FRAME_SIZE_HANDSHAKE);
+	bt_ven_notify(handshake_buff, V3_FRAME_SIZE_HANDSHAKE_REPLY);
 }
 
 static void V3_handle_read_write(const uint8_t *frame, uint8_t cmd)
@@ -169,7 +201,7 @@ static void V3_parse_buffer(const uint8_t *data, uint16_t len, bool from_app)
 				offset++;
 				continue;
 				}
-			if (offset + pkt_len > len) break; // 数据不够一帧，等待下次补齐
+			if (offset + pkt_len > len ) break; // 数据不够一帧，等待下次补齐
 			const uint8_t *frame = &data[offset];
 
 			if(cmd == V3_CMD_HANDSHAKE)

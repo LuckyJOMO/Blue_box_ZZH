@@ -58,7 +58,7 @@ void user_led_init(void)
     gpio_pin_configure_dt(&led_red, GPIO_OUTPUT_ACTIVE);
     gpio_pin_configure_dt(&led_green, GPIO_OUTPUT_ACTIVE);
     gpio_pin_set_dt(&led_red, 1);  // 红灯灭
-    gpio_pin_set_dt(&led_green, 0); // 绿灯亮
+    gpio_pin_set_dt(&led_green, 1); // 绿灯亮
 
     k_timer_init(&led_timer, led_timer_cb, NULL);
     //set_led_state(LED_STATE_GREEN_ON);

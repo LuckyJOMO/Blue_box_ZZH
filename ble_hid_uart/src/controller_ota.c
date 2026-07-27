@@ -4,8 +4,7 @@
 #include <sys/printk.h>
 #include <kernel.h>
 
-
-
+volatile uint8_t test_data_ota;
 static const uint8_t ctrl_ota_header[CTRL_OTA_HDR_LEN] =
 {
 	0xEB, 0x90, 0xEB, 0x90, 0xEB, 0x90
@@ -45,6 +44,7 @@ static void Ctrl_ota_send_raw(const uint8_t *data, uint16_t len)
 	TGT_SendMultiData((const uint8_t *)data, len);
 }
 
+
 /*给控制器发送OTA请求帧06*/
 static void Ctrl_ota_send_request(void)
 {
@@ -62,6 +62,14 @@ static void Ctrl_ota_send_request(void)
 	frame[14] = (uint8_t)((g_ctx.file_crc >> 16) & 0xFF);
 	frame[15] = (uint8_t)((g_ctx.file_crc >> 24) & 0xFF);
 
+	printk("[CTRL_OTA]  test_data_ota=\r\n%d ", test_data_ota);
+	// uint8_t test_data_flag = 0 ;
+
+	// EepromRead((CTRL_OTA_FLAG_ADDR+100),&test_data_flag,1);
+	// if (test_data_ota == 0 && test_data_flag != 0x81)
+	// {
+	// 	frame[12] = frame[12] + 1;
+	// }
 
 	Ctrl_ota_send_raw(frame, CTRL_REQ_FRAME_LEN);
 }
@@ -73,13 +81,13 @@ static void Ctrl_ota_send_data_frame(void)
 	uint16_t chunk = (remaining > CTRL_DATA_MAX_PAYLOAD) ? CTRL_DATA_MAX_PAYLOAD : (uint16_t)remaining;
 	uint8_t has_more = (chunk < remaining) ? 0x01 : 0x00;
 
-	uint8_t data_buf[CTRL_DATA_MAX_PAYLOAD];
+	static uint8_t data_buf[CTRL_DATA_MAX_PAYLOAD];
 	EepromRead(g_ctx.eeprom_read_addr, data_buf, chunk);
 
 	uint8_t data_crc = CtrlOtaCrc8(data_buf, chunk);
 
 	uint16_t frame_len = CTRL_DATA_HDR_OVERHEAD + chunk; /*报文总长度*/
-	uint8_t frame[CTRL_DATA_HDR_OVERHEAD + CTRL_DATA_MAX_PAYLOAD];
+	static uint8_t frame[CTRL_DATA_HDR_OVERHEAD + CTRL_DATA_MAX_PAYLOAD];
 
 	memcpy(frame, ctrl_ota_header, CTRL_OTA_HDR_LEN);
 	frame[6] = (uint8_t)(frame_len); 	/*报文总长度*/
@@ -88,11 +96,14 @@ static void Ctrl_ota_send_data_frame(void)
 	memcpy(frame + 9, data_buf, chunk);
 	frame[9 + chunk] = data_crc;            /* 单个数据包CRC校验 */
 
+	// if((g_ctx.sent_length / CTRL_DATA_MAX_PAYLOAD) > 35)
+	// {
+	// 	frame[9 + chunk] = data_crc + 1;
+	// }
+
 	Ctrl_ota_send_raw(frame, frame_len);
 
-	printk("[CTRL_OTA] Data frame: seq=%u chunk=%u hasMore=%d crc=0x%02X\n",
-	       (unsigned int)(g_ctx.sent_length / CTRL_DATA_MAX_PAYLOAD),
-	       chunk, has_more, data_crc);
+	// printk("[CTRL_OTA] seq=%u\r\n",(unsigned int)(g_ctx.sent_length / CTRL_DATA_MAX_PAYLOAD));
 }
 
 /*更新写入地址及发送长度*/
@@ -102,8 +113,6 @@ static void Ctrl_ota_advance_data(void)
 	uint16_t chunk = (remaining > CTRL_DATA_MAX_PAYLOAD) ? CTRL_DATA_MAX_PAYLOAD : (uint16_t)remaining;
 	g_ctx.eeprom_read_addr += chunk;
 	g_ctx.sent_length += chunk;
-	printk("remaining%d\r\n", remaining);
-	printk("chunk%d\r\n", chunk);
 }
 
 /*蓝牙上报给小程序OTA数据包更新进度*/
@@ -126,7 +135,7 @@ static void Ctrl_ota_notify_result(uint8_t result)
 {
 	uint8_t frame[5] = { 0x53, 0x35, CTRL_OTA_V3_RESULT, 0x05, result };
 	bt_ven_notify(frame, sizeof(frame));
-	printk("[CTRL_OTA] APP notify: result=%s\n", result );
+	printk("[CTRL_OTA] APP notify: result= %u \n", result );
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -135,6 +144,7 @@ static void Ctrl_ota_notify_result(uint8_t result)
 
 void Ctrl_ota_init(void)
 {
+	test_data_ota = 0;
 	uint8_t flag = 0;
 	EepromRead(CTRL_OTA_FLAG_ADDR, &flag, 1);
 
@@ -164,13 +174,12 @@ void Ctrl_ota_init(void)
 	g_ctx.eeprom_read_addr = 0;   /* OTA data stored from EEPROM addr 0 */
 	g_ctx.last_request_time = 0;
 	g_ctx.state = CTRL_OTA_SEND_REQUEST;
-
 	printk("[CTRL_OTA] OTA pending: file_len=%u file_crc=0x%08X, entering SEND_REQUEST\n",
 	       g_ctx.file_length, g_ctx.file_crc);
 }
 
 
-//蓝牙发送给控制器状态机函数
+//蓝牙发送给控制器OTA状态机函数
 void Ctrl_ota_process(void)
 {
 	uint32_t now = k_uptime_get_32();
@@ -183,8 +192,8 @@ void Ctrl_ota_process(void)
 		break;
 
 	case CTRL_OTA_SEND_REQUEST:
-		if(now <= g_ctx.last_request_time) break;	//ERROR状态下冷却500ms，冷却期跳过
-		if ((now - g_ctx.last_request_time) >= 30)
+		if(now <= g_ctx.last_request_time) break;	//ERROR状态下冷却50ms，冷却期跳过
+		if (now >= (g_ctx.last_request_time + 30))
 		{
 			Ctrl_ota_send_request();
 			g_ctx.last_request_time = now;
@@ -208,10 +217,13 @@ void Ctrl_ota_process(void)
 		break;
 	}
 	case CTRL_OTA_WAIT_DATA_ACK:
-		if (now - g_ctx.last_request_time >= 5000)
+		if (now - g_ctx.last_request_time >= 500)
 		{
 			printk("[CTRL_OTA] Data ACK timeout, resending...\n");
-			g_ctx.state = CTRL_OTA_SEND_DATA; // 回到 SEND_DATA 重发
+			g_ctx.state = CTRL_OTA_SEND_DATA;
+			// g_ctx.state = CTRL_OTA_FILED; // 无重发逻辑，改到FILED状态
+			// uint8_t flag = 0; //OTA标质位置0
+			// EepromWrite(CTRL_OTA_FLAG_ADDR, &flag, 1);
 		}
 		break;
 	case CTRL_OTA_WAIT_CONFIRM:
@@ -225,18 +237,20 @@ void Ctrl_ota_process(void)
 		g_ctx.state = CTRL_OTA_SEND_REQUEST;
 		g_ctx.sent_length = 0;
 		g_ctx.eeprom_read_addr = 0;
-		g_ctx.last_request_time = now + 470; /* 延迟500ms */
+		g_ctx.last_request_time = now; /* 延迟50ms */
 		break;
 
 	case CTRL_OTA_FILED:
-		printk("[CTRL_OTA] OTA failed, restarting system\n");
+
+		Ctrl_ota_notify_result(CTRL_OTA_RESULT_FAILED);
+		k_msleep(500);	//防止还没连接就报错，、导致小程序显示进度条卡死，500ms发一次触发小程序重新下载逻辑
 		break;
 	}
 }
 //控制器传给蓝牙的OTA命令处理函数
 void Ctrl_ota_handle_reply(uint8_t cmd)
 {
-	printk("[CTRL_OTA] RX reply cmd=0x%02X, current state=%d\n", cmd, g_ctx.state);
+	// printk("[CTRL_OTA] RX reply cmd=0x%02X, current state=%d\n", cmd, g_ctx.state);
 
 	switch (cmd) {
 
@@ -306,16 +320,20 @@ void Ctrl_ota_handle_reply(uint8_t cmd)
 
 		/* 上报给小程序OTA结果*/
 		Ctrl_ota_notify_result(CTRL_OTA_RESULT_ERROR);
-
+		// test_data_ota++;
+		// uint8_t data = 0x81;
+		// EepromWrite((CTRL_OTA_FLAG_ADDR + 100), &data, 1);
 		g_ctx.state = CTRL_OTA_ERROR;
 		break;
 	}
 
 	case CTRL_CMD_CRC_ERROR:        /* 0x09 — data frame CRC error */
+
 		if (g_ctx.state == CTRL_OTA_WAIT_DATA_ACK)
 		{
 			printk("[CTRL_OTA] Data CRC error, resending current frame\n");
 			g_ctx.state = CTRL_OTA_FILED; //重新上电，无补发包逻辑，控制器Bootlader中会卡死
+
 			Ctrl_ota_notify_result(CTRL_OTA_RESULT_FAILED);
 		}
 		break;
@@ -323,6 +341,7 @@ void Ctrl_ota_handle_reply(uint8_t cmd)
 	case CTRL_CMD_LEN_ERROR:        /* 0x0A — file length not multiple of 4 */
 		printk("[CTRL_OTA] File length error — restarting OTA flow\n");
 		g_ctx.state = CTRL_OTA_FILED; //重新上电，无从头重发逻辑，控制器Bootlader中会卡死
+
 		Ctrl_ota_notify_result(CTRL_OTA_RESULT_FAILED);
 		break;
 
@@ -331,12 +350,13 @@ void Ctrl_ota_handle_reply(uint8_t cmd)
 		break;
 	}
 }
-
+//判断是否进入OTA流程
 bool Ctrl_ota_is_active(void)
 {
 	return (g_ctx.state != CTRL_OTA_IDLE && g_ctx.state != CTRL_OTA_COMPLETE);
 }
 
+//蓝牙完成最后一个包传输后，OTA标志位置1，存入文件长度及从文件CRC
 void Ctrl_ota_setota_readyflag(uint32_t file_length, uint32_t file_crc)
 {
 	uint8_t meta[9];

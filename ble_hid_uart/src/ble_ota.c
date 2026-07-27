@@ -82,7 +82,7 @@ static void OtaSendDataAck(uint16_t seq, uint8_t result)
 	frame[5] = (uint8_t)((seq >> 8) & 0xFF);
 	frame[6] = result;
 	bt_ven_notify(frame, OTA_FRAME_DATA_ACK_SIZE);
-	printk("[OTA] Data ACK seq=%u result=0x%02X\n", seq, result);
+	printk("[OTA] Data ACK seq=%u result=0x%d\n", seq, result);
 }
 
 static void OtaSendPackageRetryAck(uint8_t result)
@@ -175,6 +175,8 @@ void OtaHandleStartRequest(const uint8_t *frame)
 		 printk("igorned [OTA] is in progress\n ");
 		 return;
 	}
+	uint8_t flag = 0;
+	EepromWrite(CTRL_OTA_FLAG_ADDR, &flag, 1);//在下载数据的时候清除OTA标志位，防止控制器无回复，单CRC错误，长度不对情况下更新文件时控制器的OTA同时进行
 
 	uint32_t file_len = (uint32_t)frame[4]
 	                  | ((uint32_t)frame[5] << 8)
@@ -225,7 +227,7 @@ void OtaHandleStartRequest(const uint8_t *frame)
 	printk("[OTA] Ready to receive data\n");
 }
 
-
+// static uint8_t test_data = 0;
 //APP发送的数据包处理逻辑
 void OtaHandleDataPacket(const uint8_t *frame, uint16_t frame_len)
 {
@@ -244,6 +246,15 @@ void OtaHandleDataPacket(const uint8_t *frame, uint16_t frame_len)
 	/*小端，先验证包序号*/
 	uint16_t seq = (uint16_t)frame[4] | ((uint16_t)frame[5] << 8);
 
+	// if(seq == 0x63 && test_data == 0)
+	// {
+	// 	g_ota_ctx.expected_seq = g_ota_ctx.expected_seq + 1;
+	// 	test_data ++;
+	// }
+	// else if (seq == 0x63 && test_data == 1 )
+	// {
+	// 	g_ota_ctx.expected_seq = g_ota_ctx.expected_seq -1;
+	// }
 	if (seq != g_ota_ctx.expected_seq)
 	{
 		printk("[OTA] Seq mismatch: expected=%u got=%u\n", g_ota_ctx.expected_seq, seq);
@@ -272,6 +283,15 @@ void OtaHandleDataPacket(const uint8_t *frame, uint16_t frame_len)
 	/* 验证CRC */
 	uint8_t computed_crc = Ota_Packet_CrcCalculate(content, content_len);
 	uint8_t received_crc = frame[frame_len - 1];
+	// if(test_data == 1)
+	// {
+	// 	computed_crc++;
+	// 	test_data++;
+	// }
+	// else
+	// {
+	// 	computed_crc = Ota_Packet_CrcCalculate(content, content_len);
+	// }
 	if (computed_crc != received_crc)
 	{
 		printk("[OTA] Packet CRC mismatch: calc=0x%02X recv=0x%02X\n", computed_crc, received_crc);
@@ -368,6 +388,7 @@ void OtaPackageRetry(const uint8_t *frame)
 	}
 }
 
+//重置OTA状态，恢复成默认值，可以重新擦除
 void OtaEraseRetry(const uint8_t *frame)
 {
 	if (frame[4] == 0x09)

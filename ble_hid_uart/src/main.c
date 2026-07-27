@@ -56,6 +56,8 @@
 #include "mcu_to_ble_protocol_v3.0.h"
 #include "i2c_eeprom.h"
 #include "controller_ota.h"
+#include "sc7u22_spi.h"
+#include "gyroscope.h"
 
 /******************  OTA INCLUDE *******************/
 #if OTA_ENABLED
@@ -99,8 +101,8 @@
 
  #define BT_LE_ADV_CONN_NAME_APP BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE | \
 						 BT_LE_ADV_OPT_USE_NAME,	    \
-						 0x140,			    \
-						 0x140, NULL)
+						 0x20,			    \
+						 0x30, NULL)
 
 
 
@@ -399,6 +401,7 @@
 	 uint32_t i = 0;
 	 printk("len%d \n", len);
 	 if (len == 0) {
+		 printk("len 000 ");
 		 return;
 	 }
 
@@ -777,6 +780,7 @@ void Handle_app_cmd_and_reply(uint8_t app_cmd ,const uint8_t *data, uint16_t len
 		 0x93, 0xF3, 0xA3, 0xB5, 0x01, 0x00, 0x40, 0x6E
 	 };
 	 ad[3].data = uart_service_uuid;
+
 
 	 // 5. 厂商数据
 	 // ad[4].data_len = 0x02;
@@ -1256,7 +1260,7 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 		 {
 			 RX_Sendata[USART_RX_CNT++] = UART_ReceiveData(TGT_UART);
 		 }
-		 show_reg3(RX_Sendata, USART_RX_CNT);
+		show_reg3(RX_Sendata, USART_RX_CNT);
 		/* Check for controller OTA bootloader reply (header: EB 90 EB 90 EB 90) */
 		bool ota_handled = false;
 		while (USART_RX_CNT >= CTRL_RSP_FRAME_LEN && RX_Sendata[0] == CTRL_OTA_HEAD_BYTE &&
@@ -1665,10 +1669,10 @@ static void rssi_work_handler(struct k_work *work)
 	 // 发送数据到UART
 	 TGT_SendMultiData((const uint8_t *)data, len);
 	 // 可加打印
-	 //printf("==== BLE TX ====\n");
-	 //printk("len is : %d\n", len);
-	//  printk("BLE MCU:");
-	//  show_reg3(data, len);
+	 printf("==== BLE TX ====\n");
+	 printk("len is : %d\n", len);
+	 printk("BLE MCU:");
+	 show_reg3(data, len);
 
  }
  /*
@@ -1713,6 +1717,18 @@ static void handshake_timer_cb(struct k_timer *timer)
 
 
 static struct k_timer check_timeout_timer; //定时检查主控是否按时回复
+
+/* 陀螺仪定时器: 50Hz (20ms) 周期读取IMU数据并更新PWM输出
+ *   对齐参考工程 halfT=0.01f + SC7U22 GYRO_CONFIG=0x86 (50Hz ODR) */
+static bool gyro_ok = false;
+static struct k_timer gyro_timer;
+static void gyro_timer_cb(struct k_timer *timer)
+{
+	if (gyro_ok)
+	{
+		GyrosCopeDataRead();
+	}
+}
 
 void check_timeout_timer_cb(struct k_timer *timer) //对app的指令的处理
 {
@@ -1832,7 +1848,6 @@ void check_timeout_timer_cb(struct k_timer *timer) //对app的指令的处理
 // }
 
 
-
 void main(void)
 {
 	load_config();//初始化 Flash 设备和配置数据
@@ -1841,24 +1856,28 @@ void main(void)
 
 	user_parameter_init();//初始化用户参数
 
-	user_led_init();//初始化LED // 初始化双色灯，只让绿灯亮
+	// user_led_init();//初始化LED // 初始化双色灯，只让绿灯亮
 	// protocol_callbackfun_init();//与私有协议相关回调函数注册
+
+	/* 陀螺仪初始化 (SC7U22 + PWM输出) */
+	// SC7U22_SPI_Init();
+	// SC7U22_INT_Init();              /* INT1=P05, INT2=P24 */
+	// SC7U22_PWM_Init(1000, 0);       /* PWM 1kHz, 初始占空比0% */
+
 
 	ble_init();  //初始化BLE
 	Ota_init();	//初始化BLE_OTA
 
 	I2c_eeprom_init();
 
-	uint8_t flag = 0;
-	EepromWrite(CTRL_OTA_FLAG_ADDR, &flag, 1);
+	// uint8_t flag = 0;
+	// EepromWrite(CTRL_OTA_FLAG_ADDR, &flag, 1);
 	Ctrl_ota_init(); //初始化CON_OTA
-
-
 
 /******************  OTA SERVICE  *******************/
 #if OTA_ENABLED
 #ifdef CONFIG_MCUMGR_CMD_OS_MGMT
-		os_mgmt_register_group();
+	os_mgmt_register_group();
 #endif
 #ifdef CONFIG_MCUMGR_CMD_IMG_MGMT
 	img_mgmt_register_group();
@@ -1879,6 +1898,15 @@ void main(void)
 			k_msleep(5);
 		} else
 		{
+			// //无OTA时运行陀螺仪
+			// if (SC7U22_Init() != 0) {
+			// 	printk("SC7U22 init failed, gyro disabled\n");
+			// }
+			// else
+			// {
+			// 	GyroscopeInit();
+			// 	gyro_ok = true;
+			// }
 			k_msleep(100);
 			break;
 
@@ -1887,13 +1915,19 @@ void main(void)
 	//Zephyr 默认 CONFIG_SYS_CLOCK_TICKS_PER_SEC=100，即10ms一个tick。
 
 		printk("Timer is set enter \n");
-		//初始化和启动定时器进行握手包指令的定时发送
+		// //初始化和启动定时器进行握手包指令的定时发送
 		k_timer_init(&handshake_timer, handshake_timer_cb, NULL);
 		k_timer_start(&handshake_timer, K_NO_WAIT, K_MSEC(1000)); //1秒定时发送一次
 
 		// 初始化和启动定时器进行检查超时的定时发送 200ms定时
 		k_timer_init(&check_timeout_timer, check_timeout_timer_cb, NULL);
 		k_timer_start(&check_timeout_timer, K_NO_WAIT, K_MSEC(200)); // 200ms周期
+
+		// /* 启动陀螺仪定时器: 50Hz (20ms) 周期读取IMU并更新PWM */
+		// k_timer_init(&gyro_timer, gyro_timer_cb, NULL);
+		// k_timer_start(&gyro_timer, K_NO_WAIT, K_MSEC(20));
+		// printk("Gyro timer started (50Hz)\n");
+
 		printk("Timer is set ready \n");
 
 
