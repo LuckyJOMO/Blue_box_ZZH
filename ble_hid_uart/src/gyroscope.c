@@ -93,7 +93,7 @@ static inline float asinf_approx(float x)
  *===========================================================================*/
 #define Kp     20.0f       /* 比例增益 */
 #define Ki     0.01f       /* 积分增益 */
-#define HALF_T 0.0025f     /* 半采样周期: 5ms/2 (匹配 SC7U22 200Hz ODR) */
+#define HALF_T 0.01f     /* 半采样周期: 20ms/2 (匹配 SC7U22 200Hz ODR) */
 
 /*===========================================================================
  * 四元数 & 积分误差 (对应原工程 Gyroscope.c:18-19)
@@ -254,20 +254,15 @@ void IMUupdate(void)
 
 	SC7U22_PWM_SetDuty((uint32_t)(PwmDuty * 100U / 4095U));
 
-	/* 调试: 每200次(约1秒)打印一次 IMU 数据和 PWM 输出 */
-		{
-			static uint32_t dbg_cnt = 0;
-			if (++dbg_cnt >= 200) {
-				int pitch_int = (int)Q_ANGLE_Y;
-				int pitch_dec = (int)((Q_ANGLE_Y - (float)pitch_int) * 10.0f);
-				if (pitch_dec < 0) pitch_dec = -pitch_dec;
-				dbg_cnt = 0;
-				printk("GYRO: ax=%d ay=%d az=%d | gx=%d gy=%d gz=%d | "
-				       "pitch=%d.%d pwm=%u(%u%%)\n",
-				       reg_ax, reg_ay, reg_az,
-				       reg_gx, reg_gy, reg_gz,
-				       pitch_int, pitch_dec,
-				       PwmDuty, (uint32_t)(PwmDuty * 100U / 4095U));
-			}
-		}
+
+	int pitch_int = (int)Q_ANGLE_Y;
+	int pitch_dec = (int)((Q_ANGLE_Y - (float)pitch_int) * 10.0f);
+	if (pitch_dec < 0) pitch_dec = -pitch_dec;
+	printk("GYRO: ax=%d ay=%d az=%d | gx=%d gy=%d gz=%d | "
+		"pitch=%d.%d pwm=%u(%u%%)\n",
+		reg_ax, reg_ay, reg_az,
+		reg_gx, reg_gy, reg_gz,
+		pitch_int, pitch_dec,
+		PwmDuty, (uint32_t)(PwmDuty * 100U / 4095U));
+
 }

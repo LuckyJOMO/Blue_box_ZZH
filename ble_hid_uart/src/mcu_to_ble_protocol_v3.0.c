@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "kernel.h"
-
+#include "dev_led.h"
 static uint16_t V3_crc_calculate(const uint8_t *frame, uint8_t count)
 {
 	uint16_t crc = 0;
@@ -68,10 +68,13 @@ static void V3_handle_handshake(const uint8_t *frame)
 	if (!V3_crc_verify(frame, V3_CRC_COUNT_HANDSHAKE, V3_CRC_OFFSET_HANDSHAKE))
 	{
 		printk("[V3] Handshake CRC error, dropping\n");
+
 		return;
 	}
 	uint8_t handshake_buff[V3_FRAME_SIZE_HANDSHAKE_REPLY];
 	V3_build_handshake_reply((uint8_t *)handshake_buff, (uint8_t *)frame);
+
+	set_led_state(LED_STATE_GREEN_FAST_BLINK); // 红灯慢闪
 	printk("[V3] Handshake OK, echoing back\n");
 	bt_ven_notify(handshake_buff, V3_FRAME_SIZE_HANDSHAKE_REPLY);
 }

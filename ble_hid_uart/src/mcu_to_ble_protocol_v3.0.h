@@ -25,8 +25,8 @@
 #define V3_CRC_OFFSET_NORMAL 		18 /* CL=byte[18], CH=byte[19] */
 #define V3_CRC_OFFSET_ERROR 		5 /* CL=byte[5], CH=byte[6] */
 #define V3_CRC_OFFSET_HANDSHAKE_REPLY 	8 /* CL=byte[8], CH=byte[9] */
-/* MCU恢复等待时间200ms */
-#define V3_MCU_REPLY_TIMEOUT_MS 80
+/* MCU回复超时时间 800ms */
+#define V3_MCU_REPLY_TIMEOUT_MS 800
 
 typedef enum {
 	V3_CMD_WRITE_CTRL = 0x00, /* Write controller */

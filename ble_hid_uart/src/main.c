@@ -482,7 +482,7 @@ void Handle_app_cmd_and_reply(uint8_t app_cmd ,const uint8_t *data, uint16_t len
 			set_led_state(LED_STATE_RED_SLOW_BLINK); // 红灯慢闪
 			return;
 		}
-        else
+        	else
 		{
 			// 正常握手流程
 			uint8_t result = data[2] ^ data[3] ^ data[4] ^ data[5];
@@ -1380,38 +1380,16 @@ static void handle_UC_uart_cmd(const uint8_t *data, uint16_t len)
 	 /* Disable RCH */
 	 CLK->CLK_TOP_CTRL &= ~CLK_TOPCTL_RCH_EN_Msk;
  }
- #define DBG_PIN 0
  __ramfunc bool k_idle_thread_hook(void)
  {
 	 if (!uart_running) {
 		 __disable_irq();
-		 #if DBG_PIN
-		 P30 = 1;
-		 #endif
-		 CLK->CLK_TOP_CTRL = (CLK->CLK_TOP_CTRL & (~(CLK_TOPCTL_AHB_DIV_Msk | CLK_TOPCTL_APB2_DIV_Msk)))
-					 | (11 << CLK_TOPCTL_AHB_DIV_Pos) | (0 << CLK_TOPCTL_APB2_DIV_Pos);
-		 #if DBG_PIN
-		 P30 = 0;
-		 P30 = 1;
-		 #endif
 		 __WFI();
-
-		 #if DBG_PIN
-		 P30 = 0;
-		 P30 = 1;
-		 #endif
-
-		 CLK->CLK_TOP_CTRL = (CLK->CLK_TOP_CTRL & (~(CLK_TOPCTL_AHB_DIV_Msk |  CLK_TOPCTL_APB2_DIV_Msk)))
-					 | (0 << CLK_TOPCTL_AHB_DIV_Pos) | (6 << CLK_TOPCTL_APB2_DIV_Pos);
-		 #if DBG_PIN
-		 P30 = 0;
-		 #endif
 		 __enable_irq();
 		 return true;
 	 } else {
 		 return false;
 	 }
-
  }
 
  //////////////////////////publicmac////////////////////////////
@@ -1643,7 +1621,7 @@ void handle_app_distance_cmd(int level)
     if (level >= 0 && level <= 5)
 	{
         current_rssi_threshold = rssi_threshold_table[level];
-    }
+    	}
 }
 
 // rssi_work_handler 实现  //函数功能查询当前的RSSI值，是否达到阈值，超过则说明达到解锁条件了，可以解锁。
@@ -1737,7 +1715,7 @@ void check_timeout_timer_cb(struct k_timer *timer) //对app的指令的处理
     V3_timeout_check(now);
     for (int i = 1; i < 5; i++)
     {
-        if (cmd_wait[i].waiting && (now - cmd_wait[i].send_time_ms > 198))
+        if (cmd_wait[i].waiting && (now - cmd_wait[i].send_time_ms > 2000))
         {
             cmd_wait[i].waiting = false;
             cmd_wait[i].timeout_state = true;//超时
@@ -1856,7 +1834,7 @@ void main(void)
 
 	user_parameter_init();//初始化用户参数
 
-	// user_led_init();//初始化LED // 初始化双色灯，只让绿灯亮
+	user_led_init();//初始化LED // 初始化双色灯，只让绿灯亮
 	// protocol_callbackfun_init();//与私有协议相关回调函数注册
 
 	/* 陀螺仪初始化 (SC7U22 + PWM输出) */
@@ -1915,7 +1893,7 @@ void main(void)
 	//Zephyr 默认 CONFIG_SYS_CLOCK_TICKS_PER_SEC=100，即10ms一个tick。
 
 		printk("Timer is set enter \n");
-		// //初始化和启动定时器进行握手包指令的定时发送
+		// // //初始化和启动定时器进行握手包指令的定时发送
 		k_timer_init(&handshake_timer, handshake_timer_cb, NULL);
 		k_timer_start(&handshake_timer, K_NO_WAIT, K_MSEC(1000)); //1秒定时发送一次
 

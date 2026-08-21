@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(unzip -p \"G:/ZZH_WORKSPACE/Central_Control_ZZH/Blue_box/LKS07X_Bootloader_UART/Linko.LKS07x.1.2.0.pack\" \"SVD/LKS32MC07x.svd\")"
+      "Bash(unzip -p \"G:/ZZH_WORKSPACE/Central_Control_ZZH/Blue_box/LKS07X_Bootloader_UART/Linko.LKS07x.1.2.0.pack\" \"SVD/LKS32MC07x.svd\")",
+      "Bash(grep -o '\"role\":\"user\"[^}]*\"text\":\"[^\"]*\"' \"C:\\\\\\\\Users\\\\\\\\acer\\\\\\\\.claude\\\\\\\\projects\\\\\\\\G--ZZH-WORKSPACE-Central-Control-ZZH-Blue-box-Keya-blebox-ZZH-code-01-SDK-zephyr-samples-panchip-solutions-ble-hid-uart\\\\\\\\d0bd7822-85a2-4335-8530-811dcfaf96bf.jsonl\")",
+      "Bash(grep -o '\"role\":\"user\"[^}]*\"text\":\"[^\"]*\"' \"C:\\\\\\\\Users\\\\\\\\acer\\\\\\\\.claude\\\\\\\\projects\\\\\\\\G--ZZH-WORKSPACE-Central-Control-ZZH-Blue-box-Keya-blebox-ZZH-code-01-SDK-zephyr-samples-panchip-solutions-ble-hid-uart\\\\\\\\0004962e-c9ae-4a5b-a490-dfb44f153f75.jsonl\")"
     ]
   }
 }

@@ -15,6 +15,7 @@ static bool led_blink_on = false;
 // 定时器回调函数，用于控制LED状态
 static void led_timer_cb(struct k_timer *timer)
 {
+    static uint8_t shine_counts = 0;
     switch (led_state) {
         case LED_STATE_GREEN_ON: // 绿灯常亮
             gpio_pin_set_dt(&led_green, 0); // 绿灯亮
@@ -36,11 +37,22 @@ static void led_timer_cb(struct k_timer *timer)
             led_blink_on = !led_blink_on;
             k_timer_start(&led_timer, K_MSEC(200), K_NO_WAIT);
             break;
-        default: // 默认，亮绿灯 正常工作
-            gpio_pin_set_dt(&led_green, 0);
-            gpio_pin_set_dt(&led_red, 1);
-            break;
-    }
+	case LED_STATE_GREEN_FAST_BLINK://绿灯快速闪烁
+	    gpio_pin_set_dt(&led_green, led_blink_on ? 0 : 1);
+	    led_blink_on = !led_blink_on;
+            k_timer_start(&led_timer, K_MSEC(50), K_NO_WAIT);
+	    shine_counts++;
+	    if(shine_counts >=30)
+	    {
+		shine_counts = 0;
+		led_state = LED_STATE_OFF;
+	    }
+	    break;
+	default: // 默认，亮绿灯 正常工作
+		gpio_pin_set_dt(&led_green, 0);
+		gpio_pin_set_dt(&led_red, 1);
+		break;
+	}
 }
 
 // 设置LED状态
@@ -55,10 +67,10 @@ void set_led_state(led_state_t state)
 // 初始化LED
 void user_led_init(void)
 {
-    gpio_pin_configure_dt(&led_red, GPIO_OUTPUT_ACTIVE);
+//     gpio_pin_configure_dt(&led_red, GPIO_OUTPUT_ACTIVE);
     gpio_pin_configure_dt(&led_green, GPIO_OUTPUT_ACTIVE);
-    gpio_pin_set_dt(&led_red, 1);  // 红灯灭
-    gpio_pin_set_dt(&led_green, 1); // 绿灯亮
+//     gpio_pin_set_dt(&led_red, 1);  // 红灯灭
+    gpio_pin_set_dt(&led_green, 1); // 绿灯灭
 
     k_timer_init(&led_timer, led_timer_cb, NULL);
     //set_led_state(LED_STATE_GREEN_ON);

@@ -10,7 +10,8 @@ typedef enum {
     LED_STATE_GREEN_ON,
     LED_STATE_RED_ON,
     LED_STATE_RED_FAST_BLINK,
-    LED_STATE_RED_SLOW_BLINK
+    LED_STATE_RED_SLOW_BLINK,
+    LED_STATE_GREEN_FAST_BLINK
 } led_state_t;
 
 void user_led_init(void);

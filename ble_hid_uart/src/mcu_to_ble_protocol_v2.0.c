@@ -230,7 +230,7 @@ static void Handle_mcu_replydata(const char *data, uint16_t datalen, ble_cmd_typ
         if (cmd_type >= 0 && cmd_type < BLE_CMD_MAX && cmd_wait[cmd_type].waiting)
         {
             uint32_t now = k_uptime_get_32();
-            if (now - cmd_wait[cmd_type].send_time_ms <= 198)
+            if (now - cmd_wait[cmd_type].send_time_ms <= 2000)
             {
                 cmd_wait[cmd_type].waiting = false;
                 // 处理正常回复逻辑
